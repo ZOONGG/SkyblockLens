@@ -25,6 +25,8 @@ public final class ToolbarEditorScreen extends Screen {
 	private int resizeStartMouseY;
 	private int resizeStartWidth;
 	private int resizeStartHeight;
+	private int resizeStartBrowserWidth;
+	private int resizeStartBrowserHeight;
 
 	public ToolbarEditorScreen(Screen parent) {
 		super(Text.literal(SkyBlockLensClient.i18n().tr("skyblocklens.toolbar_editor.title")));
@@ -61,6 +63,22 @@ public final class ToolbarEditorScreen extends Screen {
 			return super.mouseClicked(click, doubled);
 		}
 		SkyBlockLensConfig config = SkyBlockLensClient.configStore().config();
+		UiRect browserPanel = browserBounds(config);
+		UiRect browserHandle = resizeHandle(browserPanel);
+		if (browserHandle.contains(click.x(), click.y())) {
+			dragMode = DragMode.BROWSER_RESIZE;
+			resizeStartMouseX = (int) click.x();
+			resizeStartMouseY = (int) click.y();
+			resizeStartBrowserWidth = config.itemBrowserWidth;
+			resizeStartBrowserHeight = browserPanel.height();
+			return true;
+		}
+		if (browserPanel.contains(click.x(), click.y())) {
+			dragMode = DragMode.BROWSER_MOVE;
+			dragOffsetX = (int) click.x() - browserPanel.x();
+			dragOffsetY = (int) click.y() - browserPanel.y();
+			return true;
+		}
 		UiRect toolbar = toolbarBounds(config);
 		UiRect handle = resizeHandle(toolbar, config);
 		if (handle.contains(click.x(), click.y())) {
@@ -88,12 +106,25 @@ public final class ToolbarEditorScreen extends Screen {
 			int targetX = (int) click.x() - dragOffsetX;
 			int targetY = (int) click.y() - dragOffsetY;
 			config.toolbarOffsetX = clamp(targetX - (width - toolbarWidth) / 2, -900, 900);
-			config.toolbarOffsetY = clamp(targetY - (height - 42), -260, 120);
+			config.toolbarOffsetY = clamp(targetY - (height - 42), -900, 900);
 			return true;
 		}
 		if (dragMode == DragMode.RESIZE) {
 			config.toolbarSearchWidth = clamp(resizeStartWidth + (int) click.x() - resizeStartMouseX, 140, 560);
 			config.toolbarSearchHeight = clamp(resizeStartHeight + (int) click.y() - resizeStartMouseY, 16, 34);
+			return true;
+		}
+		if (dragMode == DragMode.BROWSER_MOVE) {
+			int targetX = (int) click.x() - dragOffsetX;
+			int targetY = (int) click.y() - dragOffsetY;
+			config.itemBrowserOffsetX = clamp(targetX - (width - config.itemBrowserWidth - 4), -900, 900);
+			config.itemBrowserY = clamp(targetY, 4, Math.max(4, height - 118));
+			return true;
+		}
+		if (dragMode == DragMode.BROWSER_RESIZE) {
+			config.itemBrowserWidth = clamp(resizeStartBrowserWidth + (int) click.x() - resizeStartMouseX, 188, 360);
+			int maxHeight = Math.max(118, height - config.itemBrowserY - 4);
+			config.itemBrowserHeight = clamp(resizeStartBrowserHeight + (int) click.y() - resizeStartMouseY, 118, maxHeight);
 			return true;
 		}
 		return super.mouseDragged(click, offsetX, offsetY);
@@ -152,13 +183,47 @@ public final class ToolbarEditorScreen extends Screen {
 			UiRect find = new UiRect(x, toolbar.y(), ICON_BUTTON_WIDTH, config.toolbarSearchHeight);
 			drawIconButton(context, find, mouseX, mouseY, false);
 		}
+		drawBrowserPreview(context, mouseX, mouseY, config);
+	}
+
+	private void drawBrowserPreview(DrawContext context, int mouseX, int mouseY, SkyBlockLensConfig config) {
+		UiRect browser = browserBounds(config);
+		int accent = config.accentArgb();
+		context.fill(browser.x() + 3, browser.y() + 3, browser.right() + 3, browser.bottom() + 3, 0x66000000);
+		context.fill(browser.x(), browser.y(), browser.right(), browser.bottom(), 0xD6080E14);
+		context.fill(browser.x() + 1, browser.y() + 1, browser.right() - 1, browser.y() + 36, 0xE6151C23);
+		drawBorder(context, browser, accent);
+		context.drawTextWithShadow(textRenderer, Text.literal(fit(SkyBlockLensClient.i18n().tr("skyblocklens.toolbar.results"),
+				browser.width() - 16)), browser.x() + 8, browser.y() + 8, accent);
+		int cell = Math.max(20, config.itemBrowserIconSize + 4);
+		int gridX = browser.x() + 7;
+		int gridY = browser.y() + 42;
+		int gridRight = browser.right() - 7;
+		int gridBottom = browser.bottom() - 8;
+		for (int y = gridY; y + cell - 2 <= gridBottom; y += cell) {
+			for (int x = gridX; x + cell - 2 <= gridRight; x += cell) {
+				UiRect slot = new UiRect(x, y, cell - 2, cell - 2);
+				context.fill(slot.x(), slot.y(), slot.right(), slot.bottom(), 0xCC101720);
+				drawBorder(context, slot, 0xFF1D2830);
+			}
+		}
+		drawResizeHandle(context, resizeHandle(browser), accent);
 	}
 
 	private UiRect toolbarBounds(SkyBlockLensConfig config) {
 		int toolbarWidth = toolbarWidth(config);
 		int x = clamp((width - toolbarWidth) / 2 + config.toolbarOffsetX, 8, Math.max(8, width - toolbarWidth - 8));
-		int y = clamp(height - 42 + config.toolbarOffsetY, 40, Math.max(40, height - config.toolbarSearchHeight - 34));
+		int y = clamp(height - 42 + config.toolbarOffsetY, 8, Math.max(8, height - config.toolbarSearchHeight - 8));
 		return new UiRect(x, y, toolbarWidth, config.toolbarSearchHeight);
+	}
+
+	private UiRect browserBounds(SkyBlockLensConfig config) {
+		int panelWidth = Math.min(config.itemBrowserWidth, Math.max(132, width - 12));
+		int x = clamp(width - panelWidth - 4 + config.itemBrowserOffsetX, 4, Math.max(4, width - panelWidth - 4));
+		int y = clamp(config.itemBrowserY, 4, Math.max(4, height - 118));
+		int autoHeight = height - y - 4;
+		int h = config.itemBrowserHeight <= 0 ? autoHeight : clamp(config.itemBrowserHeight, 118, Math.max(118, autoHeight));
+		return new UiRect(x, y, panelWidth, h);
 	}
 
 	private static int toolbarWidth(SkyBlockLensConfig config) {
@@ -184,6 +249,10 @@ public final class ToolbarEditorScreen extends Screen {
 	private static UiRect resizeHandle(UiRect toolbar, SkyBlockLensConfig config) {
 		return new UiRect(toolbar.x() + config.toolbarSearchWidth - HANDLE_SIZE,
 				toolbar.y() + config.toolbarSearchHeight - HANDLE_SIZE, HANDLE_SIZE, HANDLE_SIZE);
+	}
+
+	private static UiRect resizeHandle(UiRect rect) {
+		return new UiRect(rect.right() - HANDLE_SIZE, rect.bottom() - HANDLE_SIZE, HANDLE_SIZE, HANDLE_SIZE);
 	}
 
 	private void drawGrid(DrawContext context) {
@@ -290,6 +359,8 @@ public final class ToolbarEditorScreen extends Screen {
 	private enum DragMode {
 		NONE,
 		MOVE,
-		RESIZE
+		RESIZE,
+		BROWSER_MOVE,
+		BROWSER_RESIZE
 	}
 }

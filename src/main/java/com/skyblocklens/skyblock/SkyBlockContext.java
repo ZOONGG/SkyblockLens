@@ -9,10 +9,12 @@ import java.util.Locale;
 public final class SkyBlockContext {
 	private boolean onHypixel;
 	private boolean inSkyBlock;
+	private boolean inDungeon;
 	private String location = "";
 	private String purse = "";
 	private String bits = "";
 	private String lastActionBar = "";
+	private int dungeonSignalTicks;
 	private int ticks;
 
 	public boolean onHypixel() {
@@ -21,6 +23,10 @@ public final class SkyBlockContext {
 
 	public boolean inSkyBlock() {
 		return inSkyBlock;
+	}
+
+	public boolean inDungeon() {
+		return inDungeon;
 	}
 
 	public String location() {
@@ -43,6 +49,8 @@ public final class SkyBlockContext {
 		if (client.world == null || client.player == null) {
 			onHypixel = false;
 			inSkyBlock = false;
+			inDungeon = false;
+			dungeonSignalTicks = 0;
 			return;
 		}
 		ticks++;
@@ -58,7 +66,11 @@ public final class SkyBlockContext {
 				}
 			}
 		}
+		if (dungeonSignalTicks > 0) {
+			dungeonSignalTicks -= 20;
+		}
 		inSkyBlock = onHypixel && (inSkyBlock || hasSkyBlockText(location) || hasSkyBlockText(lastActionBar));
+		inDungeon = onHypixel && inSkyBlock && dungeonSignalTicks > 0;
 	}
 
 	public void observeGameMessage(Text message, boolean overlay) {
@@ -86,9 +98,17 @@ public final class SkyBlockContext {
 		if (lower.contains("skyblock")) {
 			inSkyBlock = true;
 		}
+		if (looksLikeDungeonLine(lower)) {
+			inSkyBlock = true;
+			dungeonSignalTicks = 240;
+			inDungeon = onHypixel;
+		}
 		if (lower.startsWith("area:") || lower.startsWith("location:")) {
 			location = afterColon(line);
 			inSkyBlock = true;
+			if (looksLikeDungeonLine(lower)) {
+				dungeonSignalTicks = 240;
+			}
 		}
 		if (lower.startsWith("purse:")) {
 			purse = afterColon(line);
@@ -102,6 +122,16 @@ public final class SkyBlockContext {
 
 	private static boolean hasSkyBlockText(String value) {
 		return value != null && value.toLowerCase(Locale.ROOT).contains("skyblock");
+	}
+
+	private static boolean looksLikeDungeonLine(String lower) {
+		return lower.contains("catacombs")
+				|| lower.contains("dungeon")
+				|| lower.contains("master mode")
+				|| lower.contains("floor ")
+				|| lower.contains("secrets found")
+				|| lower.contains("dungeon score")
+				|| lower.contains("the watcher");
 	}
 
 	private static String afterColon(String value) {

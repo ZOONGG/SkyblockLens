@@ -4,7 +4,11 @@
 	"compatibilityLevel": "JAVA_21",
 	"client": [
 		"HandledScreenMixin",
-		"MinecraftClientMixin"
+		"InGameHudMixin",
+		"InventoryScreenMixin",
+		"LabelCommandRendererMixin",
+		"MinecraftClientMixin",
+		"PlayerEntityRendererMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

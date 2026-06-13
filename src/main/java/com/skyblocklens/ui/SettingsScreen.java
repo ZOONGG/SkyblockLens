@@ -400,8 +400,13 @@ public final class SettingsScreen extends Screen {
 				layout.contentWidth(), accent);
 		drawFittedText(context, i18n.tr("skyblocklens.category_desc." + selectedCategory.id()), layout.contentX(),
 				titleY + 13, layout.contentWidth(), 0xFFB7C9D1);
-		drawFittedText(context, i18n.tr("skyblocklens.config.categories"), layout.categoryX() + 10,
-				titleY, layout.categoryWidth() - 20, accent);
+		int categoriesY = layout.listTop() - 28;
+		drawFittedText(context, i18n.tr("skyblocklens.config.categories"), layout.categoryX() + 14,
+				categoriesY, layout.categoryWidth() - 28, accent);
+		drawFittedText(context, i18n.tr("skyblocklens.config.categories"), layout.categoryX() + 15,
+				categoriesY + 1, layout.categoryWidth() - 28, accent);
+		context.fill(layout.categoryX() + 14, categoriesY + 13,
+				layout.categoryX() + Math.min(layout.categoryWidth() - 20, 104), categoriesY + 15, accent);
 	}
 
 	private void drawCategories(DrawContext context, Layout layout, SblI18n i18n) {
@@ -889,12 +894,17 @@ public final class SettingsScreen extends Screen {
 			case "notifications.edit_highlights" -> "notifications.chat_highlights";
 			case "itemlist.recipe_view", "itemlist.usage_view", "itemlist.search_aliases",
 					"itemlist.hide_missing_data", "itemlist.browser_overlay",
+					"itemlist.toggle_browser_keybind", "itemlist.hide_in_dungeons",
 					"itemlist.overlay_while_typing", "itemlist.inventory_search_highlight_color" -> "itemlist.local_browser";
 			case "toolbar.search_bar", "toolbar.background_color", "toolbar.background_alpha" -> "toolbar.enable";
 			case "toolbar.inventory_search_button", "toolbar.ctrl_f", "toolbar.auto_turnoff_search",
 					"toolbar.search_width", "toolbar.search_height" -> "toolbar.search_bar";
 			case "inventory_buttons.item_browser", "inventory_buttons.background_color", "inventory_buttons.background_alpha",
 					"inventory_buttons.command_background_color", "inventory_buttons.command_background_alpha" -> "inventory_buttons.enable";
+			case "misc.nameplates.show_self", "misc.nameplates_background_color", "misc.nameplates_background_alpha",
+					"misc.nameplates_text_color", "misc.nameplates_text_alpha",
+					"misc.nameplates_own_alias", "misc.nameplates_own_name_color" -> "misc.nameplates.enable";
+			case "quick_swap.binding", "quick_swap.keybind", "quick_swap.overlay" -> "quick_swap.enable";
 			case "slot_locking.binding", "slot_locking.keybind", "slot_locking.sound", "slot_locking.lock_slots_in_trade",
 					"slot_locking.disable_in_storage", "slot_locking.hotbar", "slot_locking.inventory", "slot_locking.warning",
 					"slot_locking.overlay", "slot_locking.overlay_color", "slot_locking.reset" -> "slot_locking.enable";
@@ -974,6 +984,7 @@ public final class SettingsScreen extends Screen {
 			case "notifications.edit_highlights" -> client.setScreen(ChatTermsEditorScreen.highlights(this));
 			case "itemlist.open_browser" -> client.setScreen(new ItemBrowserScreen(this));
 			case "inventory_buttons.open_editor" -> client.setScreen(new InventoryButtonEditorScreen(this));
+			case "misc.nameplates_own_alias" -> client.setScreen(new NameplateAliasScreen(this));
 			case "slot_locking.reset" -> SlotLockController.resetLockedSlots();
 			default -> {
 			}
@@ -1007,6 +1018,9 @@ public final class SettingsScreen extends Screen {
 		if ("notifications.edit_filters".equals(setting.id()) || "notifications.edit_highlights".equals(setting.id())) {
 			return i18n.tr("skyblocklens.config.edit");
 		}
+		if ("misc.nameplates_own_alias".equals(setting.id())) {
+			return i18n.tr("skyblocklens.config.edit");
+		}
 		return i18n.tr("skyblocklens.config.open");
 	}
 
@@ -1015,10 +1029,13 @@ public final class SettingsScreen extends Screen {
 		SkyBlockLensConfig config = SkyBlockLensClient.configStore().config();
 		switch (hitbox.setting().id()) {
 			case "gui.hud_background_alpha" -> config.hudBackgroundAlpha = (int) Math.round(progress * 255.0D);
+			case "gui.scoreboard_background_alpha" -> config.scoreboardBackgroundAlpha = (int) Math.round(progress * 255.0D);
 			case "notifications.duration" -> config.notificationDurationSeconds = 2 + (int) Math.round(progress * 8.0D);
 			case "toolbar.background_alpha" -> config.toolbarBackgroundAlpha = (int) Math.round(progress * 255.0D);
 			case "inventory_buttons.background_alpha" -> config.inventoryButtonBackgroundAlpha = (int) Math.round(progress * 255.0D);
 			case "inventory_buttons.command_background_alpha" -> config.inventoryCommandBackgroundAlpha = (int) Math.round(progress * 255.0D);
+			case "misc.nameplates_background_alpha" -> config.nameplateBackgroundAlpha = (int) Math.round(progress * 255.0D);
+			case "misc.nameplates_text_alpha" -> config.nameplateTextAlpha = (int) Math.round(progress * 255.0D);
 			case "slot_locking.sound_volume" -> config.slotLockSoundVolume = (int) Math.round(progress * 100.0D);
 			default -> {
 				return;
@@ -1111,14 +1128,19 @@ public final class SettingsScreen extends Screen {
 	}
 
 	private void setKeybind(InputUtil.Key key) {
-		if ("slot_locking.keybind".equals(activeKeybindSetting)) {
+		if ("slot_locking.keybind".equals(activeKeybindSetting) || "quick_swap.keybind".equals(activeKeybindSetting)) {
 			SlotLockController.setKey(key);
+		} else if ("itemlist.toggle_browser_keybind".equals(activeKeybindSetting)) {
+			ToolbarController.setToggleKey(key);
 		}
 	}
 
 	private KeyBinding keyBinding(SkyBlockSetting setting) {
-		if ("slot_locking.keybind".equals(setting.id())) {
+		if ("slot_locking.keybind".equals(setting.id()) || "quick_swap.keybind".equals(setting.id())) {
 			return SkyBlockLensClient.slotLockKey();
+		}
+		if ("itemlist.toggle_browser_keybind".equals(setting.id())) {
+			return SkyBlockLensClient.itemBrowserToggleKey();
 		}
 		return null;
 	}
@@ -1167,10 +1189,13 @@ public final class SettingsScreen extends Screen {
 	private double sliderProgress(SkyBlockSetting setting, SkyBlockLensConfig config) {
 		return switch (setting.id()) {
 			case "gui.hud_background_alpha" -> config.hudBackgroundAlpha / 255.0D;
+			case "gui.scoreboard_background_alpha" -> config.scoreboardBackgroundAlpha / 255.0D;
 			case "notifications.duration" -> (config.notificationDurationSeconds - 2.0D) / 8.0D;
 			case "toolbar.background_alpha" -> config.toolbarBackgroundAlpha / 255.0D;
 			case "inventory_buttons.background_alpha" -> config.inventoryButtonBackgroundAlpha / 255.0D;
 			case "inventory_buttons.command_background_alpha" -> config.inventoryCommandBackgroundAlpha / 255.0D;
+			case "misc.nameplates_background_alpha" -> config.nameplateBackgroundAlpha / 255.0D;
+			case "misc.nameplates_text_alpha" -> config.nameplateTextAlpha / 255.0D;
 			case "slot_locking.sound_volume" -> config.slotLockSoundVolume / 100.0D;
 			default -> 0.0D;
 		};
@@ -1179,10 +1204,13 @@ public final class SettingsScreen extends Screen {
 	private String sliderLabel(SkyBlockSetting setting, SkyBlockLensConfig config) {
 		return switch (setting.id()) {
 			case "gui.hud_background_alpha" -> Math.round(config.hudBackgroundAlpha / 255.0D * 100.0D) + "%";
+			case "gui.scoreboard_background_alpha" -> Math.round(config.scoreboardBackgroundAlpha / 255.0D * 100.0D) + "%";
 			case "notifications.duration" -> config.notificationDurationSeconds + "s";
 			case "toolbar.background_alpha" -> Math.round(config.toolbarBackgroundAlpha / 255.0D * 100.0D) + "%";
 			case "inventory_buttons.background_alpha" -> Math.round(config.inventoryButtonBackgroundAlpha / 255.0D * 100.0D) + "%";
 			case "inventory_buttons.command_background_alpha" -> Math.round(config.inventoryCommandBackgroundAlpha / 255.0D * 100.0D) + "%";
+			case "misc.nameplates_background_alpha" -> Math.round(config.nameplateBackgroundAlpha / 255.0D * 100.0D) + "%";
+			case "misc.nameplates_text_alpha" -> Math.round(config.nameplateTextAlpha / 255.0D * 100.0D) + "%";
 			case "slot_locking.sound_volume" -> config.slotLockSoundVolume + "%";
 			default -> "";
 		};

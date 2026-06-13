@@ -1,5 +1,6 @@
 package com.skyblocklens.mixin;
 
+import com.skyblocklens.access.HandledScreenAccess;
 import com.skyblocklens.slotlocking.SlotLockController;
 import com.skyblocklens.ui.InventoryButtonController;
 import com.skyblocklens.ui.ToolbarController;
@@ -22,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(HandledScreen.class)
-public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen {
+public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen implements HandledScreenAccess {
 	@Shadow
 	protected Slot focusedSlot;
 
@@ -71,6 +72,10 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
 			at = @At("HEAD"),
 			cancellable = true)
 	private void skyblocklens$blockLockedSlot(Slot slot, int slotId, int button, SlotActionType actionType, CallbackInfo ci) {
+		if (SlotLockController.handleBoundQuickSwap(slot, handler, actionType, button, getTitle().getString())) {
+			ci.cancel();
+			return;
+		}
 		if (SlotLockController.shouldBlockClick(slot, handler, actionType, button, getTitle().getString())) {
 			ci.cancel();
 		}
@@ -84,6 +89,9 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
 
 	@Inject(method = "render", at = @At("TAIL"))
 	private void skyblocklens$renderInventoryButtons(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+		if ((Object) this instanceof net.minecraft.client.gui.screen.ingame.InventoryScreen) {
+			return;
+		}
 		SlotLockController.updateBindingPreview(handler, getTitle().getString(), mouseX, mouseY, x, y);
 		SlotLockController.renderBindingPreview(context, handler, getTitle().getString(), mouseX, mouseY, x, y);
 		ToolbarController.render(context, mouseX, mouseY, x, y, backgroundWidth, backgroundHeight);
@@ -115,5 +123,30 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
 			return true;
 		}
 		return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+	}
+
+	@Override
+	public int skyblocklens$x() {
+		return x;
+	}
+
+	@Override
+	public int skyblocklens$y() {
+		return y;
+	}
+
+	@Override
+	public int skyblocklens$backgroundWidth() {
+		return backgroundWidth;
+	}
+
+	@Override
+	public int skyblocklens$backgroundHeight() {
+		return backgroundHeight;
+	}
+
+	@Override
+	public ScreenHandler skyblocklens$handler() {
+		return handler;
 	}
 }

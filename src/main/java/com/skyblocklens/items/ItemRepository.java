@@ -29,6 +29,7 @@ public final class ItemRepository {
 	}.getType();
 
 	private final List<SkyBlockItem> items = new ArrayList<>();
+	private final List<SearchEntry> searchEntries = new ArrayList<>();
 	private final Map<String, List<SkyBlockItem>> byNormalizedName = new HashMap<>();
 	private final Map<String, SkyBlockItem> byNormalizedId = new HashMap<>();
 	private final Map<String, List<SkyBlockItem>> byVanillaItem = new HashMap<>();
@@ -43,6 +44,7 @@ public final class ItemRepository {
 
 	public void load() {
 		items.clear();
+		searchEntries.clear();
 		String path = "/assets/" + SkyBlockLensClient.MOD_ID + "/data/items.json";
 		try (InputStream stream = ItemRepository.class.getResourceAsStream(path)) {
 			if (stream == null) {
@@ -74,19 +76,36 @@ public final class ItemRepository {
 	) {
 		String normalized = normalize(query);
 		if (normalized.isEmpty()) {
-			return items.stream()
-					.filter(item -> !hideMissingData || !item.missingData)
-					.limit(limit)
-					.toList();
+			List<SkyBlockItem> result = new ArrayList<>(Math.min(limit, items.size()));
+			for (SkyBlockItem item : items) {
+				if (hideMissingData && item.missingData) {
+					continue;
+				}
+				result.add(item);
+				if (result.size() >= limit) {
+					break;
+				}
+			}
+			return result;
 		}
-		return items.stream()
-				.filter(item -> !hideMissingData || !item.missingData)
-				.filter(item -> normalized.isEmpty() || matches(item, normalized, includeAliases))
-				.sorted(Comparator
-						.comparingInt((SkyBlockItem item) -> searchScore(item, normalized, includeAliases))
-						.thenComparing(item -> item.name.toLowerCase(Locale.ROOT)))
-				.limit(limit)
-				.toList();
+		List<ScoredItem> matches = new ArrayList<>();
+		for (SearchEntry entry : searchEntries) {
+			if (hideMissingData && entry.item().missingData) {
+				continue;
+			}
+			if (entry.matches(normalized, includeAliases)) {
+				matches.add(new ScoredItem(entry.item(), entry.score(normalized, includeAliases), entry.sortName()));
+			}
+		}
+		matches.sort(Comparator.comparingInt(ScoredItem::score).thenComparing(ScoredItem::sortName));
+		List<SkyBlockItem> result = new ArrayList<>(Math.min(limit, matches.size()));
+		for (ScoredItem match : matches) {
+			result.add(match.item());
+			if (result.size() >= limit) {
+				break;
+			}
+		}
+		return result;
 	}
 
 	public Optional<SkyBlockItem> findForStack(String displayName, String minecraftItem) {
@@ -109,6 +128,9 @@ public final class ItemRepository {
 	public ItemStack iconStack(SkyBlockItem item) {
 		if (item == null || item.minecraftItem == null || item.minecraftItem.isBlank()) {
 			return ItemStack.EMPTY;
+		}
+		if ("minecraft:player_head".equals(modernItemId(item.minecraftItem))) {
+			return new ItemStack(fallbackIconForHead(item));
 		}
 		try {
 			Item itemType = Registries.ITEM.get(Identifier.of(modernItemId(item.minecraftItem)));
@@ -199,7 +221,9 @@ public final class ItemRepository {
 		byNormalizedName.clear();
 		byNormalizedId.clear();
 		byVanillaItem.clear();
+		searchEntries.clear();
 		for (SkyBlockItem item : items) {
+			searchEntries.add(SearchEntry.from(item));
 			String name = normalize(item.name);
 			if (!name.isBlank()) {
 				byNormalizedName.computeIfAbsent(name, ignored -> new ArrayList<>()).add(item);
@@ -270,6 +294,59 @@ public final class ItemRepository {
 		};
 	}
 
+	private static Item fallbackIconForHead(SkyBlockItem item) {
+		String value = normalize(item.name + " " + item.id + " " + item.category);
+		if (value.contains("helmet") || value.contains("hat") || value.contains("mask") || value.contains("skin")) {
+			return Items.LEATHER_HELMET;
+		}
+		if (value.contains("chestplate")) {
+			return Items.LEATHER_CHESTPLATE;
+		}
+		if (value.contains("leggings")) {
+			return Items.LEATHER_LEGGINGS;
+		}
+		if (value.contains("boots")) {
+			return Items.LEATHER_BOOTS;
+		}
+		if (value.contains("sword") || value.contains("dagger") || value.contains("katana")) {
+			return Items.DIAMOND_SWORD;
+		}
+		if (value.contains("bow")) {
+			return Items.BOW;
+		}
+		if (value.contains("wand") || value.contains("staff")) {
+			return Items.BLAZE_ROD;
+		}
+		if (value.contains("minion")) {
+			return Items.HOPPER;
+		}
+		if (value.contains("pet") || value.contains("monster") || value.contains("boss") || value.contains("npc")) {
+			return Items.PIG_SPAWN_EGG;
+		}
+		if (value.contains("gem") || value.contains("crystal") || value.contains("jewel")) {
+			return Items.DIAMOND;
+		}
+		if (value.contains("ring") || value.contains("artifact") || value.contains("talisman") || value.contains("relic")) {
+			return Items.EMERALD;
+		}
+		if (value.contains("book") || value.contains("recipe") || value.contains("scroll")) {
+			return Items.BOOK;
+		}
+		if (value.contains("rune")) {
+			return Items.EXPERIENCE_BOTTLE;
+		}
+		if (value.contains("bait") || value.contains("fish")) {
+			return Items.FISHING_ROD;
+		}
+		if (value.contains("sack") || value.contains("bag")) {
+			return Items.BUNDLE;
+		}
+		if (value.contains("phone") || value.contains("compass") || value.contains("locator")) {
+			return Items.COMPASS;
+		}
+		return Items.NETHER_STAR;
+	}
+
 	private static Set<String> lookupTokens(SkyBlockItem item) {
 		Set<String> tokens = new LinkedHashSet<>();
 		tokens.add(normalize(item.id));
@@ -314,6 +391,70 @@ public final class ItemRepository {
 			}
 		}
 		return false;
+	}
+
+	private record SearchEntry(
+			SkyBlockItem item,
+			String id,
+			String name,
+			String rarity,
+			String category,
+			String description,
+			String lore,
+			List<String> aliases,
+			String aliasText,
+			String sortName
+	) {
+		static SearchEntry from(SkyBlockItem item) {
+			List<String> aliases = item.aliases == null
+					? List.of()
+					: item.aliases.stream().map(ItemRepository::normalize).filter(value -> !value.isBlank()).toList();
+			String lore = item.lore == null
+					? ""
+					: normalize(String.join(" ", item.lore));
+			return new SearchEntry(
+					item,
+					normalize(item.id),
+					normalize(item.name),
+					normalize(item.rarity),
+					normalize(item.category),
+					normalize(item.description),
+					lore,
+					aliases,
+					String.join(" ", aliases),
+					item.name == null ? "" : item.name.toLowerCase(Locale.ROOT)
+			);
+		}
+
+		boolean matches(String query, boolean includeAliases) {
+			return id.contains(query)
+					|| name.contains(query)
+					|| rarity.contains(query)
+					|| category.contains(query)
+					|| description.contains(query)
+					|| lore.contains(query)
+					|| (includeAliases && aliasText.contains(query));
+		}
+
+		int score(String query, boolean includeAliases) {
+			int score = 100;
+			if (id.equals(query) || name.equals(query)) {
+				return score;
+			}
+			if (includeAliases && aliases.stream().anyMatch(query::equals)) {
+				return score + 2;
+			}
+			if (id.startsWith(query) || name.startsWith(query)) {
+				return score + 8;
+			}
+			if (includeAliases && aliases.stream().anyMatch(alias -> alias.startsWith(query))) {
+				return score + 12;
+			}
+			return score + 24;
+		}
+	}
+
+	private record ScoredItem(SkyBlockItem item, int score, String sortName) {
 	}
 
 	private static String normalize(String value) {

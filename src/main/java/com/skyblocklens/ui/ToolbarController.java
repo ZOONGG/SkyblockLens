@@ -3,32 +3,35 @@ package com.skyblocklens.ui;
 import com.skyblocklens.SkyBlockLensClient;
 import com.skyblocklens.config.SkyBlockLensConfig;
 import com.skyblocklens.items.SkyBlockItem;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.input.CharInput;
 import net.minecraft.client.input.KeyInput;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.text.Text;
+import net.minecraft.util.Util;
 import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public final class ToolbarController {
+	private static final String DEFAULT_TOGGLE_KEY_TRANSLATION = "key.keyboard.o";
 	private static final int ICON_BUTTON_WIDTH = 24;
 	private static final int GAP = 4;
-	private static final int BROWSER_WIDTH = 186;
 	private static final int BROWSER_MARGIN = 4;
-	private static final int BROWSER_CELL = 22;
-	private static final int PAGE_BUTTON_SIZE = 16;
+	private static final int PAGE_BUTTON_SIZE = 18;
+	private static final int SIDEBAR_HEADER_HEIGHT = 36;
 	private static final int SEARCH_TIMEOUT_MILLIS = 120_000;
 	private static final int QUERY_LIMIT = 64;
 
@@ -42,6 +45,7 @@ public final class ToolbarController {
 	private static final List<ResultHitbox> resultHitboxes = new ArrayList<>();
 	private static final Map<String, Double> hoverAnimations = new HashMap<>();
 
+	private static KeyBinding browserToggleKey;
 	private static String query = "";
 	private static String undoQuery = "";
 	private static String selectedItemId = "";
@@ -53,12 +57,58 @@ public final class ToolbarController {
 	private static int browserPage;
 	private static int maxBrowserPage;
 	private static long lastInteractionMillis;
-	private static String lastFallbackChar = "";
-	private static long lastFallbackMillis;
 	private static String feedbackText = "";
 	private static long feedbackUntilMillis;
 
 	private ToolbarController() {
+	}
+
+	public static KeyBinding registerKeybind() {
+		browserToggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key.skyblocklens.item_browser_toggle",
+				InputUtil.Type.KEYSYM,
+				GLFW.GLFW_KEY_O,
+				SkyBlockLensClient.keyCategory()
+		));
+		applyConfiguredToggleKey();
+		return browserToggleKey;
+	}
+
+	public static KeyBinding toggleKeyBinding() {
+		return browserToggleKey;
+	}
+
+	public static void handleKeybinds() {
+		if (browserToggleKey == null) {
+			return;
+		}
+		while (browserToggleKey.wasPressed()) {
+			SkyBlockLensConfig config = SkyBlockLensClient.configStore().config();
+			if (!enabled(config) || !browserButtonVisible(config)) {
+				continue;
+			}
+			config.itemBrowserOverlayVisible = !config.itemBrowserOverlayVisible;
+			SkyBlockLensClient.configStore().save();
+			touch();
+		}
+	}
+
+	public static void setToggleKey(InputUtil.Key key) {
+		if (browserToggleKey == null || key == null) {
+			return;
+		}
+		browserToggleKey.setBoundKey(key);
+		KeyBinding.updateKeysByCode();
+		SkyBlockLensClient.configStore().config().itemBrowserToggleKey = key.getTranslationKey();
+		SkyBlockLensClient.configStore().save();
+		MinecraftClient client = MinecraftClient.getInstance();
+		if (client.options != null) {
+			client.options.write();
+		}
+	}
+
+	public static InputUtil.Key defaultToggleKey() {
+		return InputUtil.fromTranslationKey(DEFAULT_TOGGLE_KEY_TRANSLATION);
 	}
 
 	public static void render(DrawContext context, int mouseX, int mouseY, int screenX, int screenY,
@@ -111,10 +161,10 @@ public final class ToolbarController {
 
 	public static boolean mouseClicked(Click click, ScreenHandler handler, String screenTitle, int screenX, int screenY) {
 		SkyBlockLensConfig config = SkyBlockLensClient.configStore().config();
-		if (!enabled(config) || click.button() != 0) {
+		if (!enabled(config) || (click.button() != 0 && click.button() != 1)) {
 			return false;
 		}
-		if (searchBox.contains(click.x(), click.y()) && config.featureEnabled("toolbar.search_bar")) {
+		if (click.button() == 0 && searchBox.contains(click.x(), click.y()) && config.featureEnabled("toolbar.search_bar")) {
 			focused = true;
 			selectAllQuery = false;
 			touch();
@@ -122,22 +172,22 @@ public final class ToolbarController {
 		}
 		focused = false;
 		selectAllQuery = false;
-		if (browserToggleButton.contains(click.x(), click.y())) {
+		if (click.button() == 0 && browserToggleButton.contains(click.x(), click.y())) {
 			config.itemBrowserOverlayVisible = !config.itemBrowserOverlayVisible;
 			SkyBlockLensClient.configStore().save();
 			touch();
 			return true;
 		}
-		if (inventorySearchButton.contains(click.x(), click.y())) {
+		if (click.button() == 0 && inventorySearchButton.contains(click.x(), click.y())) {
 			handleInventorySearchClick(handler, config);
 			return true;
 		}
-		if (browserUpButton.contains(click.x(), click.y())) {
+		if (click.button() == 0 && browserUpButton.contains(click.x(), click.y())) {
 			browserPage = MathHelper.clamp(browserPage - 1, 0, maxBrowserPage);
 			touch();
 			return true;
 		}
-		if (browserDownButton.contains(click.x(), click.y())) {
+		if (click.button() == 0 && browserDownButton.contains(click.x(), click.y())) {
 			browserPage = MathHelper.clamp(browserPage + 1, 0, maxBrowserPage);
 			touch();
 			return true;
@@ -146,7 +196,11 @@ public final class ToolbarController {
 			if (hitbox.bounds().contains(click.x(), click.y())) {
 				selectedItemId = hitbox.item().id;
 				MinecraftClient client = MinecraftClient.getInstance();
-				client.setScreen(new ItemDetailsScreen(client.currentScreen, hitbox.item()));
+				if (click.button() == 1) {
+					openWiki(hitbox.item());
+				} else {
+					client.setScreen(new RecipeViewerScreen(client.currentScreen, hitbox.item()));
+				}
 				touch();
 				return true;
 			}
@@ -210,7 +264,7 @@ public final class ToolbarController {
 				return true;
 			}
 			default -> {
-				return appendPrintableFromKey(input);
+				return shouldConsumePrintableKey(input);
 			}
 		}
 	}
@@ -221,10 +275,6 @@ public final class ToolbarController {
 		}
 		String typed = input.asString();
 		if (typed.isEmpty()) {
-			return true;
-		}
-		long now = System.currentTimeMillis();
-		if (typed.equals(lastFallbackChar) && now - lastFallbackMillis < 90L) {
 			return true;
 		}
 		if (typed.isBlank() && typed.charAt(0) != ' ') {
@@ -247,11 +297,12 @@ public final class ToolbarController {
 				Registries.ITEM.getId(stack.getItem()).toString(),
 				query,
 				config.featureEnabled("itemlist.search_aliases"));
-		if (!match) {
-			return;
-		}
 		int x = screenX + slot.x;
 		int y = screenY + slot.y;
+		if (!match) {
+			context.fill(x, y, x + 16, y + 16, 0x9A20242A);
+			return;
+		}
 		int accent = SkyBlockLensConfig.parseHexColor(config.inventorySearchHighlightColor, config.accentArgb());
 		int pulse = 80 + (int) (Math.sin(System.currentTimeMillis() / 160.0D) * 40.0D);
 		int color = (Math.max(120, pulse) << 24) | (accent & 0x00FFFFFF);
@@ -272,23 +323,28 @@ public final class ToolbarController {
 			sidebarGrid = new UiRect(0, 0, 0, 0);
 			return;
 		}
-		int panelWidth = Math.min(BROWSER_WIDTH, Math.max(132, context.getScaledWindowWidth() - 12));
-		int x = Math.max(BROWSER_MARGIN, context.getScaledWindowWidth() - panelWidth - BROWSER_MARGIN);
-		int y = 8;
-		int h = Math.max(118, context.getScaledWindowHeight() - y - 46);
+		int panelWidth = Math.min(config.itemBrowserWidth, Math.max(132, context.getScaledWindowWidth() - 12));
+		int x = MathHelper.clamp(context.getScaledWindowWidth() - panelWidth - BROWSER_MARGIN + config.itemBrowserOffsetX,
+				BROWSER_MARGIN, Math.max(BROWSER_MARGIN, context.getScaledWindowWidth() - panelWidth - BROWSER_MARGIN));
+		int y = MathHelper.clamp(config.itemBrowserY, BROWSER_MARGIN,
+				Math.max(BROWSER_MARGIN, context.getScaledWindowHeight() - 118));
+		int autoHeight = context.getScaledWindowHeight() - y - BROWSER_MARGIN;
+		int h = config.itemBrowserHeight <= 0 ? autoHeight
+				: MathHelper.clamp(config.itemBrowserHeight, 118, Math.max(118, autoHeight));
 		sidebar = new UiRect(x, y, panelWidth, h);
 
 		int border = config.accentArgb();
 		context.fill(sidebar.x() + 3, sidebar.y() + 3, sidebar.right() + 3, sidebar.bottom() + 3, 0x66000000);
 		context.fill(sidebar.x(), sidebar.y(), sidebar.right(), sidebar.bottom(), 0xD6080E14);
-		context.fill(sidebar.x() + 1, sidebar.y() + 1, sidebar.right() - 1, sidebar.y() + 24, 0xE6151C23);
+		context.fill(sidebar.x() + 1, sidebar.y() + 1, sidebar.right() - 1,
+				sidebar.y() + SIDEBAR_HEADER_HEIGHT, 0xE6151C23);
 		drawBorder(context, sidebar, border);
 		MinecraftClient client = MinecraftClient.getInstance();
-		context.drawTextWithShadow(client.textRenderer, Text.literal(SkyBlockLensClient.i18n().tr("skyblocklens.toolbar.results")),
-				sidebar.x() + 8, sidebar.y() + 9, border);
+		String title = fit(SkyBlockLensClient.i18n().tr("skyblocklens.toolbar.results"), sidebar.width() - 72);
+		context.drawTextWithShadow(client.textRenderer, Text.literal(title), sidebar.x() + 8, sidebar.y() + 7, border);
 
-		browserUpButton = new UiRect(sidebar.right() - 42, sidebar.y() + 5, PAGE_BUTTON_SIZE, PAGE_BUTTON_SIZE);
-		browserDownButton = new UiRect(sidebar.right() - 22, sidebar.y() + 5, PAGE_BUTTON_SIZE, PAGE_BUTTON_SIZE);
+		browserUpButton = new UiRect(sidebar.right() - 46, sidebar.y() + 6, PAGE_BUTTON_SIZE, PAGE_BUTTON_SIZE);
+		browserDownButton = new UiRect(sidebar.right() - 23, sidebar.y() + 6, PAGE_BUTTON_SIZE, PAGE_BUTTON_SIZE);
 		drawArrowButton(context, browserUpButton, mouseX, mouseY, true, border);
 		drawArrowButton(context, browserDownButton, mouseX, mouseY, false, border);
 
@@ -301,15 +357,21 @@ public final class ToolbarController {
 			drawCenteredState(context, SkyBlockLensClient.i18n().tr("skyblocklens.items.no_results"), 0xFFAAB7C4);
 			return;
 		}
+		String count = SkyBlockLensClient.i18n().tr("skyblocklens.toolbar.result_count")
+				.replace("{count}", String.valueOf(results.size()));
+		context.drawTextWithShadow(client.textRenderer, Text.literal(fit(count, sidebar.width() - 18)),
+				sidebar.x() + 8, sidebar.y() + 22, 0xFFAAB7C4);
 		renderItemGrid(context, results, mouseX, mouseY, config);
 	}
 
 	private static void renderItemGrid(DrawContext context, List<SkyBlockItem> results, int mouseX, int mouseY,
 			SkyBlockLensConfig config) {
 		MinecraftClient client = MinecraftClient.getInstance();
-		sidebarGrid = new UiRect(sidebar.x() + 7, sidebar.y() + 29, sidebar.width() - 14, sidebar.height() - 36);
-		int columns = Math.max(1, sidebarGrid.width() / BROWSER_CELL);
-		int rows = Math.max(1, sidebarGrid.height() / BROWSER_CELL);
+		int cellSize = Math.max(20, config.itemBrowserIconSize + 4);
+		sidebarGrid = new UiRect(sidebar.x() + 7, sidebar.y() + SIDEBAR_HEADER_HEIGHT + 4,
+				sidebar.width() - 14, sidebar.height() - SIDEBAR_HEADER_HEIGHT - 10);
+		int columns = Math.max(1, sidebarGrid.width() / cellSize);
+		int rows = Math.max(1, sidebarGrid.height() / cellSize);
 		int pageSize = Math.max(1, columns * rows);
 		maxBrowserPage = Math.max(0, (results.size() - 1) / pageSize);
 		browserPage = MathHelper.clamp(browserPage, 0, maxBrowserPage);
@@ -318,7 +380,7 @@ public final class ToolbarController {
 		if (maxBrowserPage > 0) {
 			String label = (browserPage + 1) + "/" + (maxBrowserPage + 1);
 			context.drawTextWithShadow(client.textRenderer, Text.literal(label),
-					sidebar.right() - 68 - client.textRenderer.getWidth(label), sidebar.y() + 9, 0xFFAAB7C4);
+					sidebar.right() - 72 - client.textRenderer.getWidth(label), sidebar.y() + 12, 0xFFAAB7C4);
 		}
 
 		SkyBlockItem hoveredItem = null;
@@ -328,9 +390,9 @@ public final class ToolbarController {
 			int localIndex = index - pageStart;
 			int col = localIndex % columns;
 			int row = localIndex / columns;
-			int cellX = sidebarGrid.x() + col * BROWSER_CELL;
-			int cellY = sidebarGrid.y() + row * BROWSER_CELL;
-			UiRect cell = new UiRect(cellX, cellY, BROWSER_CELL - 2, BROWSER_CELL - 2);
+			int cellX = sidebarGrid.x() + col * cellSize;
+			int cellY = sidebarGrid.y() + row * cellSize;
+			UiRect cell = new UiRect(cellX, cellY, cellSize - 2, cellSize - 2);
 			boolean hover = cell.contains(mouseX, mouseY);
 			boolean active = item.id.equals(selectedItemId);
 			double hoverProgress = hoverAnimation("item:" + item.id, hover || active);
@@ -339,7 +401,7 @@ public final class ToolbarController {
 			drawBorder(context, cell, active ? config.accentArgb() : blend(0xFF1D2830, config.accentArgb(), hoverProgress * 0.45D));
 			ItemStack stack = SkyBlockLensClient.itemRepository().iconStack(item);
 			int itemX = cell.x() + Math.max(1, (cell.width() - 16) / 2);
-			int itemY = cell.y() + 3;
+			int itemY = cell.y() + Math.max(1, (cell.height() - 16) / 2);
 			if (!stack.isEmpty()) {
 				context.drawItem(stack, itemX, itemY);
 			} else {
@@ -560,6 +622,10 @@ public final class ToolbarController {
 			key = "skyblocklens.toolbar.toggle_browser.tooltip";
 		} else if (inventorySearchButton.contains(mouseX, mouseY)) {
 			key = "skyblocklens.toolbar.search_inventory.tooltip";
+		} else if (browserUpButton.contains(mouseX, mouseY)) {
+			key = "skyblocklens.toolbar.previous_page.tooltip";
+		} else if (browserDownButton.contains(mouseX, mouseY)) {
+			key = "skyblocklens.toolbar.next_page.tooltip";
 		}
 		if (key.isBlank()) {
 			return;
@@ -611,6 +677,20 @@ public final class ToolbarController {
 		}
 	}
 
+	private static void openWiki(SkyBlockItem item) {
+		if (item == null) {
+			return;
+		}
+		String url = item.wikiUrl == null || item.wikiUrl.isBlank()
+				? "https://wiki.hypixel.net/" + item.name.trim().replace(" ", "_")
+				: item.wikiUrl;
+		try {
+			Util.getOperatingSystem().open(url);
+		} catch (RuntimeException ignored) {
+			showFeedback(url);
+		}
+	}
+
 	private static void appendText(String value) {
 		if (value == null || value.isEmpty()) {
 			return;
@@ -644,7 +724,7 @@ public final class ToolbarController {
 	}
 
 	private static boolean enabled(SkyBlockLensConfig config) {
-		return config.enabled && config.featureEnabled("toolbar.enable");
+		return config.enabled && config.featureEnabled("toolbar.enable") && !hiddenInDungeon(config);
 	}
 
 	private static boolean browserButtonVisible(SkyBlockLensConfig config) {
@@ -655,6 +735,12 @@ public final class ToolbarController {
 		return browserButtonVisible(config)
 				&& (config.itemBrowserOverlayVisible
 						|| (!query.isBlank() && config.featureEnabled("itemlist.overlay_while_typing")));
+	}
+
+	private static boolean hiddenInDungeon(SkyBlockLensConfig config) {
+		return config.featureEnabled("itemlist.hide_in_dungeons")
+				&& SkyBlockLensClient.skyBlockContext() != null
+				&& SkyBlockLensClient.skyBlockContext().inDungeon();
 	}
 
 	private static int toolbarWidth(SkyBlockLensConfig config) {
@@ -677,27 +763,16 @@ public final class ToolbarController {
 		return Math.max(1, width);
 	}
 
-	private static boolean appendPrintableFromKey(KeyInput input) {
+	private static boolean shouldConsumePrintableKey(KeyInput input) {
 		if ((input.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_ALT | GLFW.GLFW_MOD_SUPER)) != 0) {
 			return false;
 		}
-		String typed;
 		if (input.key() == GLFW.GLFW_KEY_SPACE) {
-			typed = " ";
+			return true;
 		} else {
-			typed = GLFW.glfwGetKeyName(input.key(), input.scancode());
-			if (typed == null || typed.length() != 1) {
-				return false;
-			}
-			if ((input.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0) {
-				typed = typed.toUpperCase(Locale.ROOT);
-			}
+			String typed = GLFW.glfwGetKeyName(input.key(), input.scancode());
+			return typed != null && typed.length() == 1;
 		}
-		appendText(typed);
-		lastFallbackChar = typed;
-		lastFallbackMillis = System.currentTimeMillis();
-		touch();
-		return true;
 	}
 
 	private static void tickTimeout(SkyBlockLensConfig config) {
@@ -729,6 +804,20 @@ public final class ToolbarController {
 		focused = false;
 		selectAllQuery = false;
 		inventorySearchMode = false;
+	}
+
+	private static void applyConfiguredToggleKey() {
+		if (browserToggleKey == null) {
+			return;
+		}
+		try {
+			browserToggleKey.setBoundKey(InputUtil.fromTranslationKey(
+					SkyBlockLensClient.configStore().config().itemBrowserToggleKey));
+		} catch (RuntimeException error) {
+			SkyBlockLensClient.configStore().config().itemBrowserToggleKey = DEFAULT_TOGGLE_KEY_TRANSLATION;
+			browserToggleKey.setBoundKey(defaultToggleKey());
+		}
+		KeyBinding.updateKeysByCode();
 	}
 
 	private static void drawBorder(DrawContext context, UiRect rect, int color) {

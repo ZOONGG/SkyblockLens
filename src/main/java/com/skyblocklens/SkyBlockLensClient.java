@@ -11,6 +11,7 @@ import com.skyblocklens.notifications.NotificationManager;
 import com.skyblocklens.skyblock.SkyBlockContext;
 import com.skyblocklens.slotlocking.SlotLockController;
 import com.skyblocklens.ui.SettingsScreen;
+import com.skyblocklens.ui.ToolbarController;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -41,6 +42,7 @@ public final class SkyBlockLensClient implements ClientModInitializer {
 	private static ChatController chatController;
 	private static KeyBinding openSettingsKey;
 	private static KeyBinding slotLockKey;
+	private static KeyBinding itemBrowserToggleKey;
 
 	@Override
 	public void onInitializeClient() {
@@ -97,6 +99,10 @@ public final class SkyBlockLensClient implements ClientModInitializer {
 		return slotLockKey;
 	}
 
+	public static KeyBinding itemBrowserToggleKey() {
+		return itemBrowserToggleKey;
+	}
+
 	public static KeyBinding.Category keyCategory() {
 		return KEY_CATEGORY;
 	}
@@ -118,6 +124,7 @@ public final class SkyBlockLensClient implements ClientModInitializer {
 				KEY_CATEGORY
 		));
 		slotLockKey = SlotLockController.registerKeybind();
+		itemBrowserToggleKey = ToolbarController.registerKeybind();
 	}
 
 	private static void registerCommands() {
@@ -140,6 +147,7 @@ public final class SkyBlockLensClient implements ClientModInitializer {
 			while (openSettingsKey.wasPressed()) {
 				client.setScreen(new SettingsScreen(null));
 			}
+			ToolbarController.handleKeybinds();
 			skyBlockContext.update(client);
 		});
 

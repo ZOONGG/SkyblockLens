@@ -22,8 +22,9 @@ Java-first, which keeps the MVP stable and easier to review.
 - JSON config with safe defaults.
 - NEU-inspired dark settings screen opened with `/sbl`, `/skyblocklens`, or a
   keybind.
-- Settings categories for connected MVP modules: About/Core, GUI Locations,
-  Notifications, Item List, Toolbar, Slot Locking, and Tooltip Tweaks.
+- Settings categories for connected MVP modules: About/Core, Misc, GUI Locations,
+  Notifications, Item List, Toolbar, Inventory Buttons, Slot Locking, Quick Swap,
+  and Tooltip Tweaks.
 - Search, scrollable category list, custom toggles, dropdowns, sliders, color
   pickers, keybind editing, action buttons, reset, true full-menu scale, and
   HUD scale controls.
@@ -38,8 +39,10 @@ Java-first, which keeps the MVP stable and easier to review.
   local safety feature.
 - Draggable HUD editor with basic HUD modules.
 - NEU-inspired local toolbar in handled inventory screens with search,
-  CTRL+F focus, a fixed far-right paged SkyBlock item grid, browser toggle,
-  bottom placement, SkyBlock data matching, and slot highlighting.
+  CTRL+F focus, a configurable far-right paged SkyBlock item grid, browser
+  toggle, bottom placement, SkyBlock data matching, slot highlighting, and
+  nonmatching-slot dimming while inventory search is active. The browser has a
+  configurable toggle keybind and hides itself in detected SkyBlock dungeons.
 - Local item browser using bundled JSON data derived from the NEU item data
   repo, with alias/lore/id-aware search, visual crafting-grid recipes, reverse
   "used in" lookup, clickable recipe/usage rows, and local recipe history
@@ -48,16 +51,20 @@ Java-first, which keeps the MVP stable and easier to review.
   abbreviated pet progress lines.
 - Chat filters, editable filter/highlight terms, highlights, and local visual
   notifications with no automatic responses.
+- Safe inventory item-browser button with an editor for its position and size.
 - Slot Locking keybind with stable player-inventory slot persistence, visual
   overlays, and client-side blocking for locked inventory slots, drops, and
   number-key hotbar swaps into locked slots. Locked hotbar slots are marked in
   the normal HUD and protected against the drop key. Lock/unlock sounds, sound volume,
   reset for locally saved locked slots, trade-window locking, and storage-screen
   disable behavior are configurable. Safe Slot Binding metadata, overlay
-  preview, and bound-slot drop protection are implemented without automatic
-  item movement.
-- Former inventory button code is archived under `docs/archived-code` and is not
-  shown in gameplay.
+  preview, optional bound-slot drop protection, and user-initiated Shift+Left
+  Click swapping from either side of a linked main-inventory/hotbar pair are
+  implemented without macros or automatic item movement loops.
+- Misc nameplate controls include nameplate background/text opacity, opt-in
+  own-name display for supported camera views, local-only own-name replacement,
+  and own-name color. GUI settings also expose scoreboard background color and
+  opacity.
 - Profile/API skeleton with networking disabled by default.
 
 ## Build
@@ -87,6 +94,10 @@ account data.
 Bundled SkyBlock item metadata is transformed from
 `NotEnoughUpdates/NotEnoughUpdates-REPO` and kept local in the mod. See
 `THIRD_PARTY_NOTICES.md` for the MIT license notice and attribution.
+
+Custom Hypixel player-head textures require item data that includes the modern
+head profile/texture value for each SkyBlock internal item id. Without that
+field the browser falls back to safe vanilla/category icons instead of guessing.
 
 ## NotEnoughUpdates Compatibility Goal
 

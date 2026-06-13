@@ -50,7 +50,8 @@ public final class SlotLockController {
 	}
 
 	public static boolean handleKeyPress(KeyInput input, Slot focusedSlot, ScreenHandler handler, String screenTitle) {
-		if (slotLockKey == null || !slotLockKey.matchesKey(input) || focusedSlot == null || handler == null || !isEnabled()) {
+		if (slotLockKey == null || !slotLockKey.matchesKey(input) || focusedSlot == null || handler == null
+				|| (!isEnabled() && !bindingEnabled())) {
 			return false;
 		}
 		if (slotLockKeyDown) {
@@ -61,11 +62,18 @@ public final class SlotLockController {
 			sendStatus("skyblocklens.slot_locking.disabled_in_storage", Formatting.YELLOW);
 			return true;
 		}
+		if (bindingEnabled() && canBindFrom(focusedSlot) && !isInventoryIndexLocked(focusedSlot.getIndex())) {
+			bindingSourceIndex = focusedSlot.getIndex();
+			return true;
+		}
+		if (!isEnabled()) {
+			return true;
+		}
 		if (!canLockSlot(focusedSlot)) {
 			sendStatus("skyblocklens.slot_locking.not_lockable", Formatting.RED);
 			return true;
 		}
-		bindingSourceIndex = bindingEnabled() && canBindFrom(focusedSlot) ? focusedSlot.getIndex() : -1;
+		bindingSourceIndex = -1;
 
 		SkyBlockLensConfig config = SkyBlockLensClient.configStore().config();
 		String key = slotKey(handler, focusedSlot);
@@ -152,13 +160,47 @@ public final class SlotLockController {
 		return true;
 	}
 
+	public static boolean handleBoundQuickSwap(Slot slot, ScreenHandler handler, SlotActionType actionType, int button,
+			String screenTitle) {
+		if (slot == null || handler == null || actionType != SlotActionType.QUICK_MOVE || button != 0
+				|| !quickSwapEnabled() || !shouldRespectLocksInScreen(screenTitle) || !isPlayerInventorySlot(slot)) {
+			return false;
+		}
+		int clickedIndex = slot.getIndex();
+		int targetIndex = bindingTargetForIndex(clickedIndex);
+		int hotbarIndex;
+		int mainIndex;
+		if (clickedIndex >= MAIN_INVENTORY_FIRST_SLOT && clickedIndex <= MAIN_INVENTORY_LAST_SLOT
+				&& targetIndex >= HOTBAR_FIRST_SLOT && targetIndex <= HOTBAR_LAST_SLOT) {
+			mainIndex = clickedIndex;
+			hotbarIndex = targetIndex;
+		} else if (clickedIndex >= HOTBAR_FIRST_SLOT && clickedIndex <= HOTBAR_LAST_SLOT
+				&& targetIndex >= MAIN_INVENTORY_FIRST_SLOT && targetIndex <= MAIN_INVENTORY_LAST_SLOT) {
+			mainIndex = targetIndex;
+			hotbarIndex = clickedIndex;
+		} else {
+			return false;
+		}
+		Slot mainSlot = playerSlotByIndex(handler, mainIndex);
+		if (mainSlot == null) {
+			return false;
+		}
+		MinecraftClient client = MinecraftClient.getInstance();
+		if (client.player == null || client.interactionManager == null) {
+			return false;
+		}
+		client.interactionManager.clickSlot(handler.syncId, mainSlot.id, hotbarIndex, SlotActionType.SWAP, client.player);
+		return true;
+	}
+
 	public static void renderSlotOverlay(DrawContext context, Slot slot, ScreenHandler handler, String screenTitle, int screenX, int screenY) {
-		if (slot == null || handler == null || !isEnabled() || !shouldRespectLocksInScreen(screenTitle)
-				|| !SkyBlockLensClient.configStore().config().featureEnabled("slot_locking.overlay")) {
+		if (slot == null || handler == null || (!isEnabled() && !bindingEnabled()) || !shouldRespectLocksInScreen(screenTitle)) {
 			return;
 		}
-		boolean locked = isSlotLocked(handler, slot);
-		int boundTo = bindingTargetForSlot(slot);
+		boolean locked = isEnabled()
+				&& SkyBlockLensClient.configStore().config().featureEnabled("slot_locking.overlay")
+				&& isSlotLocked(handler, slot);
+		int boundTo = bindingOverlayEnabled() ? bindingTargetForSlot(slot) : -1;
 		if (!locked && boundTo < 0) {
 			return;
 		}
@@ -173,15 +215,17 @@ public final class SlotLockController {
 
 	public static void renderHotbarOverlay(DrawContext context) {
 		MinecraftClient client = MinecraftClient.getInstance();
-		if (client.currentScreen != null || client.player == null || !isEnabled()
-				|| !SkyBlockLensClient.configStore().config().featureEnabled("slot_locking.overlay")) {
+		if (client.currentScreen != null || client.player == null || (!isEnabled() && !bindingEnabled())
+				|| (!SkyBlockLensClient.configStore().config().featureEnabled("slot_locking.overlay") && !bindingOverlayEnabled())) {
 			return;
 		}
 		int hotbarLeft = context.getScaledWindowWidth() / 2 - 91;
 		int slotY = context.getScaledWindowHeight() - 19;
 		for (int index = HOTBAR_FIRST_SLOT; index <= HOTBAR_LAST_SLOT; index++) {
-			boolean locked = isInventoryIndexLocked(index);
-			int boundTo = bindingTargetForIndex(index);
+			boolean locked = isEnabled()
+					&& SkyBlockLensClient.configStore().config().featureEnabled("slot_locking.overlay")
+					&& isInventoryIndexLocked(index);
+			int boundTo = bindingOverlayEnabled() ? bindingTargetForIndex(index) : -1;
 			if (!locked && boundTo < 0) {
 				continue;
 			}
@@ -273,7 +317,21 @@ public final class SlotLockController {
 
 	private static boolean bindingEnabled() {
 		SkyBlockLensConfig config = SkyBlockLensClient.configStore().config();
-		return config.featureEnabled("slot_locking.binding") && config.featureEnabled("slot_locking.enable");
+		return config.enabled
+				&& (config.featureEnabled("quick_swap.binding")
+				|| (config.featureEnabled("slot_locking.enable") && config.featureEnabled("slot_locking.binding")));
+	}
+
+	private static boolean quickSwapEnabled() {
+		SkyBlockLensConfig config = SkyBlockLensClient.configStore().config();
+		return config.enabled && bindingEnabled() && config.featureEnabled("quick_swap.enable");
+	}
+
+	private static boolean bindingOverlayEnabled() {
+		SkyBlockLensConfig config = SkyBlockLensClient.configStore().config();
+		return bindingEnabled()
+				&& (config.featureEnabled("quick_swap.overlay")
+				|| (config.featureEnabled("slot_locking.enable") && config.featureEnabled("slot_locking.overlay")));
 	}
 
 	private static boolean isSlotLocked(ScreenHandler handler, Slot slot) {
@@ -391,6 +449,7 @@ public final class SlotLockController {
 		removeBindingForIndex(sourceIndex);
 		removeBindingForIndex(targetIndex);
 		config.lockedSlots.removeIf(("player_inventory:" + sourceIndex)::equals);
+		config.lockedSlots.removeIf(("player_inventory:" + targetIndex)::equals);
 		config.slotBindings.add("player_inventory:" + sourceIndex + "->player_inventory:" + targetIndex);
 		SkyBlockLensClient.configStore().save();
 	}

@@ -9,6 +9,7 @@ public enum SkyBlockSettingCategory {
 	TOOLBAR("toolbar"),
 	INVENTORY_BUTTONS("inventory_buttons"),
 	SLOT_LOCKING("slot_locking"),
+	QUICK_SWAP("quick_swap"),
 	TOOLTIP_TWEAKS("tooltip_tweaks"),
 	ITEM_OVERLAYS("item_overlays"),
 	SKILL_OVERLAYS("skill_overlays"),

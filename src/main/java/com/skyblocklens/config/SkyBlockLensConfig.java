@@ -17,18 +17,30 @@ public final class SkyBlockLensConfig {
 	public String inventoryButtonBackgroundColor = "#151C23";
 	public String inventoryCommandBackgroundColor = "#333A35";
 	public String inventorySearchHighlightColor = "#E7A743";
+	public String nameplateBackgroundColor = "#000000";
+	public String nameplateTextColor = "#FFFFFF";
+	public String nameplateOwnNameColor = "#42E8C8";
+	public String scoreboardBackgroundColor = "#000000";
 	public String slotLockKey = "key.keyboard.l";
+	public String itemBrowserToggleKey = "key.keyboard.o";
+	public String nameplateOwnAlias = "";
 	public int slotLockSoundVolume = 20;
 	public int toolbarSearchWidth = 420;
 	public int toolbarSearchHeight = 22;
 	public int itemBrowserWidth = 252;
+	public int itemBrowserHeight = 0;
 	public int itemBrowserIconSize = 22;
 	public int toolbarOffsetX = 0;
 	public int toolbarOffsetY = 0;
+	public int itemBrowserOffsetX = 0;
+	public int itemBrowserY = 8;
 	public int hudBackgroundAlpha = 153;
 	public int toolbarBackgroundAlpha = 255;
 	public int inventoryButtonBackgroundAlpha = 255;
 	public int inventoryCommandBackgroundAlpha = 190;
+	public int nameplateBackgroundAlpha = 96;
+	public int nameplateTextAlpha = 255;
+	public int scoreboardBackgroundAlpha = 96;
 	public int inventoryItemButtonX = 178;
 	public int inventoryItemButtonY = 6;
 	public int inventoryItemButtonWidth = 74;
@@ -78,20 +90,34 @@ public final class SkyBlockLensConfig {
 		inventoryButtonBackgroundColor = normalizeHex(inventoryButtonBackgroundColor, defaults.inventoryButtonBackgroundColor);
 		inventoryCommandBackgroundColor = normalizeHex(inventoryCommandBackgroundColor, defaults.inventoryCommandBackgroundColor);
 		inventorySearchHighlightColor = normalizeHex(inventorySearchHighlightColor, defaults.inventorySearchHighlightColor);
+		nameplateBackgroundColor = normalizeHex(nameplateBackgroundColor, defaults.nameplateBackgroundColor);
+		nameplateTextColor = normalizeHex(nameplateTextColor, defaults.nameplateTextColor);
+		nameplateOwnNameColor = normalizeHex(nameplateOwnNameColor, defaults.nameplateOwnNameColor);
+		scoreboardBackgroundColor = normalizeHex(scoreboardBackgroundColor, defaults.scoreboardBackgroundColor);
 		if (slotLockKey == null || slotLockKey.isBlank()) {
 			slotLockKey = defaults.slotLockKey;
 		}
+		if (itemBrowserToggleKey == null || itemBrowserToggleKey.isBlank()) {
+			itemBrowserToggleKey = defaults.itemBrowserToggleKey;
+		}
+		nameplateOwnAlias = sanitizeText(nameplateOwnAlias, "", 32);
 		slotLockSoundVolume = Math.max(0, Math.min(100, slotLockSoundVolume));
 		toolbarSearchWidth = Math.max(140, Math.min(560, toolbarSearchWidth));
 		toolbarSearchHeight = Math.max(16, Math.min(34, toolbarSearchHeight));
 		itemBrowserWidth = Math.max(188, Math.min(360, itemBrowserWidth));
 		itemBrowserIconSize = Math.max(18, Math.min(32, itemBrowserIconSize));
 		toolbarOffsetX = Math.max(-900, Math.min(900, toolbarOffsetX));
-		toolbarOffsetY = Math.max(-260, Math.min(120, toolbarOffsetY));
+		toolbarOffsetY = Math.max(-900, Math.min(900, toolbarOffsetY));
+		itemBrowserOffsetX = Math.max(-900, Math.min(900, itemBrowserOffsetX));
+		itemBrowserY = Math.max(4, Math.min(900, itemBrowserY));
+		itemBrowserHeight = Math.max(0, Math.min(1200, itemBrowserHeight));
 		hudBackgroundAlpha = clampAlpha(hudBackgroundAlpha);
 		toolbarBackgroundAlpha = clampAlpha(toolbarBackgroundAlpha);
 		inventoryButtonBackgroundAlpha = clampAlpha(inventoryButtonBackgroundAlpha);
 		inventoryCommandBackgroundAlpha = clampAlpha(inventoryCommandBackgroundAlpha);
+		nameplateBackgroundAlpha = clampAlpha(nameplateBackgroundAlpha);
+		nameplateTextAlpha = clampAlpha(nameplateTextAlpha);
+		scoreboardBackgroundAlpha = clampAlpha(scoreboardBackgroundAlpha);
 		inventoryItemButtonX = Math.max(-220, Math.min(280, inventoryItemButtonX));
 		inventoryItemButtonY = Math.max(-120, Math.min(220, inventoryItemButtonY));
 		inventoryItemButtonWidth = Math.max(34, Math.min(160, inventoryItemButtonWidth));
@@ -175,6 +201,10 @@ public final class SkyBlockLensConfig {
 			case "inventory_buttons.background_color" -> inventoryButtonBackgroundColor;
 			case "inventory_buttons.command_background_color" -> inventoryCommandBackgroundColor;
 			case "itemlist.inventory_search_highlight_color" -> inventorySearchHighlightColor;
+			case "misc.nameplates_background_color" -> nameplateBackgroundColor;
+			case "misc.nameplates_text_color" -> nameplateTextColor;
+			case "misc.nameplates_own_name_color" -> nameplateOwnNameColor;
+			case "gui.scoreboard_background_color" -> scoreboardBackgroundColor;
 			case "slot_locking.overlay_color" -> overlayColor;
 			default -> accentColor;
 		};
@@ -189,6 +219,10 @@ public final class SkyBlockLensConfig {
 			case "inventory_buttons.background_color" -> inventoryButtonBackgroundColor = normalized;
 			case "inventory_buttons.command_background_color" -> inventoryCommandBackgroundColor = normalized;
 			case "itemlist.inventory_search_highlight_color" -> inventorySearchHighlightColor = normalized;
+			case "misc.nameplates_background_color" -> nameplateBackgroundColor = normalized;
+			case "misc.nameplates_text_color" -> nameplateTextColor = normalized;
+			case "misc.nameplates_own_name_color" -> nameplateOwnNameColor = normalized;
+			case "gui.scoreboard_background_color" -> scoreboardBackgroundColor = normalized;
 			case "slot_locking.overlay_color" -> overlayColor = normalized;
 			default -> {
 			}
@@ -213,6 +247,22 @@ public final class SkyBlockLensConfig {
 
 	public int inventoryCommandBackgroundArgb() {
 		return colorWithAlpha(inventoryCommandBackgroundColor, inventoryCommandBackgroundAlpha, 0xBE333A35);
+	}
+
+	public int nameplateBackgroundArgb() {
+		return colorWithAlpha(nameplateBackgroundColor, nameplateBackgroundAlpha, 0x60000000);
+	}
+
+	public int nameplateTextArgb() {
+		return colorWithAlpha(nameplateTextColor, nameplateTextAlpha, 0xFFFFFFFF);
+	}
+
+	public int nameplateOwnNameArgb() {
+		return parseHexColor(nameplateOwnNameColor, 0xFF42E8C8);
+	}
+
+	public int scoreboardBackgroundArgb() {
+		return colorWithAlpha(scoreboardBackgroundColor, scoreboardBackgroundAlpha, 0x60000000);
 	}
 
 	public int overlayArgb(int alpha) {
@@ -283,6 +333,17 @@ public final class SkyBlockLensConfig {
 			normalized.putIfAbsent(trimmed.toLowerCase(Locale.ROOT), trimmed);
 		}
 		return new ArrayList<>(normalized.values());
+	}
+
+	public static String sanitizeText(String value, String fallback, int maxLength) {
+		String result = value == null ? fallback : value.trim().replaceAll("\\s+", " ");
+		if (result == null) {
+			result = "";
+		}
+		if (result.length() > maxLength) {
+			result = result.substring(0, maxLength);
+		}
+		return result;
 	}
 
 	private void normalizeInventoryCommands() {
@@ -383,11 +444,11 @@ public final class SkyBlockLensConfig {
 		}
 
 		private static String sanitizeText(String value, String fallback, int maxLength) {
-			String result = value == null ? fallback : value.trim().replaceAll("\\s+", " ");
+			String result = SkyBlockLensConfig.sanitizeText(value, fallback, maxLength);
 			if (result.isBlank()) {
 				result = fallback;
 			}
-			return result.length() > maxLength ? result.substring(0, maxLength) : result;
+			return result;
 		}
 	}
 }

@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.1.26
+
+- Restored the safe inventory item-browser button and registered its settings page.
+- Fixed survival inventory overlay rendering by drawing the toolbar/browser after
+  the vanilla player inventory screen, preventing invisible stale item hitboxes.
+- Reworked the handled-screen item grid sizing: configurable width/height/position,
+  taller right panel, separated item count, page button tooltips, and inventory
+  search dimming for nonmatching slots.
+- Changed item-grid clicks so Left Click opens a recipe-only viewer and Right
+  Click opens the item's wiki page.
+- Smoothed toolbar search input by letting typed text flow through `charTyped`
+  instead of duplicating printable keys in `keyPressed`.
+- Indexed browser search text once per item so typing in the 8k-item browser no
+  longer normalizes the whole data set every frame.
+- Added an item-browser toggle keybind and an opt-out guard that hides the
+  toolbar/search/browser in detected SkyBlock dungeons.
+- Added linked quick swap: Shift+Left Click from either side of a linked
+  main-inventory/hotbar pair swaps them using one vanilla swap action.
+- Separated quick-swap links from Slot Locking so creating a link no longer
+  locks or protects the involved slots unless the explicit protection option is
+  enabled.
+- Added Misc nameplate settings and a renderer hook for showing the local
+  player's own nameplate when enabled.
+- Added nameplate background/text opacity rendering, local own-name replacement,
+  own-name color, and configurable scoreboard background opacity/color.
+- Fixed recipe-only views for items without bundled recipes so they show a clean
+  unavailable state instead of a fake output slot.
+- Fixed missing Misc category description and renamed quick-swap settings away
+  from raw Slot Binding wording in the visible menu.
+- Replaced identical player-head icons with category/name-based fallback icons
+  when the bundled item data has no skull texture value.
+
 ## 0.1.25
 
 - Fixed live HUD/editor text fitting so resized modules keep full readable text
