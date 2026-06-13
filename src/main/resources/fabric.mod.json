@@ -1,0 +1,29 @@
+{
+	"schemaVersion": 1,
+	"id": "skyblocklens",
+	"version": "${version}",
+	"name": "SkyBlock Lens",
+	"description": "A modern Fabric quality-of-life mod for Hypixel SkyBlock inspired by NotEnoughUpdates.",
+	"authors": [
+		"SkyBlock Lens contributors"
+	],
+	"contact": {
+		"sources": "https://github.com/skyblocklens/skyblock-lens"
+	},
+	"license": "LGPL-3.0-or-later",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"com.skyblocklens.SkyBlockLensClient"
+		]
+	},
+	"mixins": [
+		"skyblocklens.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "1.21.11",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
